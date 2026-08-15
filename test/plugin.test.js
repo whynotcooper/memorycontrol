@@ -18,7 +18,7 @@ function fakeCtx(root) {
     sessions: { get(id) { return sessions.get(id); } },
     listeners,
     disposers: [],
-    tools: { register(def) { defs.push(def); } },
+    tools: { register(def) { defs.push(def); }, get() { return undefined; } },
     systemPrompt: { section(s) { sections.push(s); } },
     llm: null,
     on(event, handler) {
@@ -55,6 +55,20 @@ function tool(ctx, name) {
 function tmpRoot() {
   return mkdtempSync(join(tmpdir(), "mc-plugin-"));
 }
+
+test("registerTools skips tools already provided by the deployment", () => {
+  const root = tmpRoot();
+  try {
+    const ctx = fakeCtx(root);
+    const existing = new Set(["memory_save", "memory_search", "memory_get", "memory_list", "memory_delete", "memory_stats", "memory_prune", "memory_export", "memory_import"]);
+    ctx.tools.get = (name) => (existing.has(name) ? { name } : undefined);
+    apply(ctx, { root, webApi: false });
+    const names = ctx.defs.map((d) => d.name).sort();
+    assert.deepEqual(names, ["context_archive", "context_status"]);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
 
 test("apply registers all memory tools and the prompt section", () => {
   const root = tmpRoot();

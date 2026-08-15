@@ -1,4 +1,4 @@
-﻿import { test } from "node:test";
+import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -151,7 +151,7 @@ test("compaction summary archives full text and extracts knowledge", async () =>
 
     const session = makeSession("s1", [
       textEvent(1, "user/message", "old turn: decide to use vitest for testing"),
-      textEvent(2, "assistant/message", "Done 鈥?vitest it is."),
+      textEvent(2, "assistant/message", "Done — vitest it is."),
       makeEvent(3, "compaction/start", { compactionId: "c1", turn: 1 }),
       makeEvent(4, "compaction/summary", {
         compactionId: "c1",
