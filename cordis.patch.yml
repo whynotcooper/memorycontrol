@@ -1,0 +1,26 @@
+# memorycontrol bundle patch: applied when a profile lists this bundle in its
+# dsh.profile.bundles (which `dsh plugin add memorycontrol` does automatically).
+#
+# A patch replaces a row's whole `config`, so overrides from a profile's own
+# cordis.patch.yml must restate every key the row needs, e.g.:
+#
+#   - insert:
+#       - id: memorycontrol
+#         name: memorycontrol
+#         config:
+#           root: ''                  # storage root; '' => $DSH_HOME/memory
+#           registerTools: true       # register the memory_* model tools
+#           prompt: true              # add the memory guidance prompt section
+#           webApi: true              # serve the browser UI JSON API (web only)
+#           defaultLimit: 10          # default result limit for search/list
+#           maxRecallBytes: 12000     # cap per-entry content returned by memory_get
+#           maxContentBytes: 65536    # cap content accepted by memory_save
+#           embedding:
+#             enabled: false          # optional semantic search (OpenAI-compatible embeddings)
+#             baseUrl: https://api.deepseek.com
+#             model: deepseek-embedding
+#             apiKeyEnv: DEEPSEEK_API_KEY
+
+- insert:
+    - id: memorycontrol
+      name: memorycontrol
