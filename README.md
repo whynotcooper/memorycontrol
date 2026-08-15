@@ -1,11 +1,38 @@
-# memorycontrol
+# self-memorycontrol
 
-**Plug-and-play structured memory for DeepSeek Harness (DSH).**
+**Plug-and-play context management + structured memory for DeepSeek Harness (DSH).**
+
+The harness ships its own built-in `memory_*` tools; **self-memorycontrol**
+complements them: it shares the same local store and query DSL, and adds a
+browser Memory tab, optional semantic search, and full configuration — plus
+an active context engine that keeps long multi-turn conversations lean.
 
 Save context out of the conversation, recall it precisely, and search memory
 like a database — structured filters, a query DSL, fuzzy matching, and
 optional semantic embeddings. Local-first, zero external services, no build
 step: install from git or a local folder with one `dsh plugin add`.
+
+> **Naming.** The repo is `whynotcooper/memorycontrol`; the npm package is
+> `self-memorycontrol` — renamed so it is never confused with the memory
+> system built into DeepSeek Harness itself.
+
+## vs the harness's built-in memory
+
+| | DSH built-in `memory_*` tools | **self-memorycontrol** |
+| --- | --- | --- |
+| Tools | memory_save/search/get/list/delete/stats/prune/export/import + context_status/context_archive | registers the same names, **skipped automatically when the harness already provides them** (duplicate guard) |
+| Storage | `$DSH_HOME/memory/entries.json` | **same file, same schema** — data is shared both ways |
+| Query DSL | `kind: tag: importance:>3 since:7d "phrase" +must -without` | **same DSL** |
+| Scoping | workspace (per project) + global | **same** (auto-recall = global + current workspace) |
+| Context engine | turn extraction + compaction archiving + `<memory-recall>` | **same design**, driven by the harness's own `compaction/*` session events |
+| Browser UI | none | **Memory tab** in the conversation view (search / browse / create / delete) |
+| Semantic search | none (lexical only) | **optional embeddings** (`semantic` / `hybrid` ranking) |
+| Configuration | none (fixed) | **fully configurable** (root, budgets, toggles, per-feature switches) |
+| Portability | tied to DSH releases | **independent open-source package** — install on any profile, extend, publish |
+
+In short: the built-in memory is the core; self-memorycontrol is the
+enhanced, configurable, visible side of the same memory. Both write to one
+store, so nothing is duplicated.
 
 - **Saves context** — the agent stores full details out-of-band with
   `memory_save` and keeps only compact summaries in the conversation;
@@ -46,9 +73,9 @@ step: install from git or a local folder with one `dsh plugin add`.
 | [dsh-mnemon](https://github.com/omdsh-dev/dsh-mnemon) | `mnemon` CLI | partial (spaces/entities) | sidebar workbench | partial (runtime tier) |
 | [dsh-memoryhub](https://github.com/solknight48/dsh-memoryhub) | `mh` CLI (Python, git) | via mh | Memory tab (iframe of mh ui) | partial (checkpoints) |
 | [dsh-plugin-meta-memory](https://github.com/YYTbit/dsh-plugin-meta-memory) | none | keyword only | none | brief auto-injection |
-| **memorycontrol** | **none** | **query DSL + facets + fuzzy + optional semantic** | **Memory tab (native)** | **extract + archive + auto-recall + tools** |
+| **self-memorycontrol** | **none** | **query DSL + facets + fuzzy + optional semantic** | **Memory tab (native)** | **extract + archive + auto-recall + tools** |
 
-memorycontrol is the only one that needs no external binary or service, ships
+self-memorycontrol is the only one that needs no external binary or service, ships
 a real query language for structured recall, and adds an active context engine
 on top of the harness's own compaction — so long conversations stay lean and
 nothing is lost.
@@ -62,15 +89,16 @@ Prerequisites: DSH `0.1.0-rc.6+`, Node ≥ 22.
 dsh plugin --profile web add github:whynotcooper/memorycontrol
 
 # or from a local checkout (dev)
-dsh plugin --profile web add link:/absolute/path/to/memorycontrol
+dsh plugin --profile web add link:/absolute/path/to/self-memorycontrol
 
 # or from the npm registry (when published)
-dsh plugin --profile web add memorycontrol
+dsh plugin --profile web add self-memorycontrol
 ```
 
 `dsh plugin add` detects the `dsh.bundle` declaration, installs the package,
 and appends it to the profile's bundle list automatically. Restart the profile
-(`dsh --profile web`) and the `memory_*` tools plus the Memory tab appear.
+(`dsh --profile web`) and the Memory tab appears; the `memory_*` tools are
+registered only when the harness does not already provide them.
 
 Use a different profile name to enable it elsewhere (`headless`, or a custom
 profile created with `dsh plugin`).
@@ -83,8 +111,8 @@ profile's `cordis.patch.yml`:
 ```yaml
 # $DSH_HOME/profiles/<name>/cordis.patch.yml
 - insert:
-    - id: memorycontrol
-      name: memorycontrol
+    - id: self-memorycontrol
+      name: self-memorycontrol
       config:
         root: ''                     # storage root; '' => $DSH_HOME/memory
         registerTools: true          # register the memory_* model tools
@@ -181,7 +209,7 @@ entries over one giant one.
 
 ## Security notes
 
-- The web API route (`/plugins/memorycontrol/api`) rejects cross-origin
+- The web API route (`/plugins/self-memorycontrol/api`) rejects cross-origin
   requests (Origin header check) and is served by the loopback-bound web
   server; only same-origin browser pages can reach it.
 - No data ever leaves the machine unless you enable `embedding` (embeddings
@@ -235,7 +263,7 @@ The context engine builds on established ideas:
   is the direction we deliberately leave to the harness (tool-result pruning,
   `compaction-basic`) and complement instead of reimplement.
 
-Instead of replacing DSH's own compaction, memorycontrol observes its durable
+Instead of replacing DSH's own compaction, self-memorycontrol observes its durable
 `compaction/start|summary|end` session events and adds the two things compaction
 cannot do alone: **lossless retention** (the raw shadowed text stays searchable)
 and **durable distillation** (knowledge survives the lossy summary).

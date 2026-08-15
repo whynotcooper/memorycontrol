@@ -121,7 +121,7 @@ test("turn-level extraction saves durable entries and throttles", async () => {
     ctx.emit("session/event", session, session.events[2]);
     await new Promise((r) => setTimeout(r, 40));
     assert.equal(ctx.llm.calls.length, 1);
-    const store = ctx.__memorycontrol.store;
+    const store = ctx.__selfMemory.store;
     assert.equal(store.count(), 2);
     const saved = store.all();
     assert.ok(saved.some((e) => e.kind === "decision" && e.tags.includes("auth")));
@@ -166,7 +166,7 @@ test("compaction summary archives full text and extracts knowledge", async () =>
     ]);
     ctx.emit("session/event", session, session.events[3]);
     await new Promise((r) => setTimeout(r, 60));
-    const store = ctx.__memorycontrol.store;
+    const store = ctx.__selfMemory.store;
     const archives = store.all().filter((e) => e.kind === "context" && e.tags.includes("archive"));
     assert.equal(archives.length, 1);
     assert.ok(archives[0].content.includes("vitest"));
@@ -184,7 +184,7 @@ test("session-start recall injects a bounded memory-recall message", async () =>
     const ctx = fakeCtx();
     ctx.llm = stubLlm("[]");
     apply(ctx, { root, webApi: false, ...contextConfig({ extract: { enabled: false } }) });
-    const store = ctx.__memorycontrol.store;
+    const store = ctx.__selfMemory.store;
     await store.save({ content: "User prefers Chinese replies.", title: "Language", kind: "preference", importance: 5, scope: "global" });
     await store.save({ content: "Vitest for unit tests.", title: "Testing", kind: "decision", importance: 4, scope: "workspace", workspace: "/ws" });
     await store.save({ content: "other workspace", title: "Other", kind: "note", importance: 3, scope: "workspace", workspace: "/elsewhere" });

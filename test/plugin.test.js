@@ -81,7 +81,7 @@ test("apply registers all memory tools and the prompt section", () => {
       "memory_get", "memory_import", "memory_list", "memory_prune",
       "memory_save", "memory_search", "memory_stats",
     ]);
-    assert.ok(ctx.sections.some((s) => s.name === "memory:control"));
+    assert.ok(ctx.sections.some((s) => s.name === "self-memory:control"));
     assert.ok(ctx.sections[0].text.includes("memory_save"));
   } finally {
     rmSync(root, { recursive: true, force: true });
