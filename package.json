@@ -1,7 +1,7 @@
 {
   "name": "memorycontrol",
-  "version": "0.1.0",
-  "description": "Plug-and-play structured memory for DeepSeek Harness (DSH): save context out-of-band, recall precisely, and search memory like a database with a structured query DSL, faceted filters, fuzzy matching, and optional semantic embeddings. Zero external services, local-first.",
+  "version": "0.2.0",
+  "description": "Plug-and-play context management + structured memory for DeepSeek Harness (DSH): keeps long multi-turn conversations lean with automatic knowledge extraction, compaction-aware full-fidelity archiving, and bounded auto-recall — plus a structured query DSL, faceted filters, fuzzy matching, and optional semantic search. Zero external services, local-first.",
   "keywords": [
     "dsh",
     "dsh-plugin",

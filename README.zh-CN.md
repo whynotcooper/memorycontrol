@@ -5,6 +5,11 @@
 把上下文内容存到对话之外、需要时精确召回，并且像查数据库一样搜索记忆 —— 结构化过滤、查询 DSL、模糊匹配，可选语义向量检索。本地优先、零外部服务、无需构建：一条 `dsh plugin add` 即可从 Git 或本地目录安装。
 
 - **节省上下文** —— 助手用 `memory_save` 把完整细节存到对话之外，对话里只保留简短摘要；`memory_search` 只返回精简命中，需要全文时再按 id 取回。
+- **长对话管理（v0.2）** —— 上下文引擎让超长多轮会话自动保持精简：
+  - **回合级抽取** —— 每轮对话结束后把持久知识提炼进记忆（节流，一次小规模 LLM 调用）；
+  - **压缩感知归档** —— 当 harness 压缩旧区间时，原文被逐字归档成可搜索的记忆条目并提炼，什么都不丢（有损摘要不再是唯一痕迹）；
+  - **有界自动召回** —— 会话启动（新开或恢复）时，把当前工作区最相关的条目以紧凑的 `<memory-recall>` 块注入；
+  - **显式控制** —— `context_archive` 立即快照当前对话，`context_status` 报告对话体量/压缩次数/模块遥测。
 - **结构化搜索** —— 类数据库查询语言（`kind:decision tag:auth importance:>3 since:7d "精确短语" -排除词`），加上多面过滤、分页、排序和拼写纠错。
 - **持久且本地** —— 单一可读 JSON 文档，位于 `$DSH_HOME/memory`（默认 `~/.dsh/memory`），原子写入；重启不丢，同一工作区跨会话共享。
 - **可选语义搜索** —— 兼容 OpenAI 的 embeddings 接口（如 DeepSeek `deepseek-embedding`），支持 `semantic`/`hybrid` 排序；未启用或缺少 API Key 时优雅降级为词法搜索。
@@ -63,6 +68,24 @@ dsh plugin --profile web add memorycontrol
           baseUrl: https://api.deepseek.com
           model: deepseek-embedding
           apiKeyEnv: DEEPSEEK_API_KEY
+        context:                     # 上下文管理引擎（v0.2）
+          enabled: true
+          extract:                   # 回合级知识抽取
+            enabled: true
+            minNewChars: 2000        # 新文本达到该长度才抽取
+            maxInputChars: 30000     # 每次抽取输入上限
+            minIntervalMs: 60000     # 抽取冷却时间
+            maxTokens: 2048
+            provider: ''             # '' = 复用最近一次请求路由
+            model: ''
+          archive:                   # 压缩感知全保真归档
+            enabled: true
+            maxChars: 60000          # 每次归档的原文上限
+          recall:                    # 会话启动时有界自动召回
+            enabled: true
+            onSessionStart: true
+            budgetChars: 6000        # 召回块大小上限（约 1500 token）
+            maxEntries: 8
 ```
 
 ## 工具
@@ -77,6 +100,8 @@ dsh plugin --profile web add memorycontrol
 | `memory_stats` | 按类型/范围统计、热门标签、过期数、语义状态。 |
 | `memory_prune` | 清理过期条目（`dry_run` 预览）。 |
 | `memory_export` / `memory_import` | JSON 备份与恢复/合并。 |
+| `context_status` | 对话体量（字符/Token）、压缩次数、模块遥测。 |
+| `context_archive` | 立即把整个对话快照成可搜索的存档（可附摘要）并提炼持久知识。 |
 
 ### 搜索查询语言
 
@@ -142,11 +167,24 @@ lib/store.js      MemoryStore：持久化 JSON 存储 + CRUD + 索引维护
 lib/search.js     分词（拉丁词 + CJK 二元组）、倒排索引、排序、模糊
 lib/query.js      结构化查询 DSL 解析器
 lib/semantic.js   可选 OpenAI 兼容 embeddings 客户端
-lib/tools.js      九个 memory_* 工具定义
+lib/context.js    ContextManager：回合抽取、压缩归档、自动召回
+lib/tools.js      十一个 memory_* / context_* 工具定义
 lib/web.js        浏览器 UI JSON API 路由（仅 web profile）
 lib/client.js     浏览器端：记忆标签页（web 模块加载器 bundle）
-lib/prompt.js     记忆使用指引（系统提示片段）
+lib/prompt.js     记忆 + 上下文使用指引（系统提示片段）
 ```
+
+## 设计与相关工作
+
+上下文引擎建立在既有研究成果之上：
+
+- **MemGPT / 操作系统式虚拟上下文**（[arXiv:2310.08560](https://arxiv.org/abs/2310.08560)）—— 主上下文 + 外部内存分页：我们把被压缩的区间「换出」到可搜索存储（全保真），会话启动时再把相关记忆「换入」。
+- **认知架构 CoALA**（[arXiv:2309.02427](https://arxiv.org/abs/2309.02427)）—— 工作/情景/语义记忆分层：当前对话面=工作记忆，存档=情景记忆，条目=语义记忆。
+- **Generative Agents**（[arXiv:2304.03442](https://arxiv.org/abs/2304.03442)）—— 记忆流 + 近因/重要度/相关性检索：自动召回按重要度和工作区相关性排序。
+- **MemoryBank**（[arXiv:2305.10250](https://arxiv.org/abs/2305.10250)）与 **Mem0**（[arXiv:2504.19413](https://arxiv.org/abs/2504.19413)）—— 长期记忆 + 持续抽取：回合级抽取在信息被摘要吞掉之前先提炼入库。
+- **LLMLingua 式提示压缩**（[arXiv:2310.05736](https://arxiv.org/abs/2310.05736)）方向刻意交给 harness 自身（工具结果剪枝、`compaction-basic`），我们做互补而不是重造。
+
+我们不替换 DSH 自带的压缩，而是监听其持久的 `compaction/start|summary|end` 会话事件，补上压缩单独做不到的两件事：**无损留存**（被压原文仍可搜索）和**持久提炼**（知识在有损摘要之外存活）。
 
 ## License
 

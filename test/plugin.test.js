@@ -11,17 +11,29 @@ function fakeCtx(root) {
   const defs = [];
   const sections = [];
   const sessions = new Map();
+  const listeners = new Map();
   const ctx = {
     defs,
     sections,
     sessions: { get(id) { return sessions.get(id); } },
+    listeners,
     disposers: [],
     tools: { register(def) { defs.push(def); } },
     systemPrompt: { section(s) { sections.push(s); } },
+    llm: null,
+    on(event, handler) {
+      if (!listeners.has(event)) listeners.set(event, []);
+      listeners.get(event).push(handler);
+      return () => {};
+    },
+    emit(event, ...args) {
+      for (const h of listeners.get(event) ?? []) h(...args);
+    },
     get(name) {
       if (name === "tools") return ctx.tools;
       if (name === "systemPrompt") return ctx.systemPrompt;
       if (name === "sessions") return ctx.sessions;
+      if (name === "llm") return ctx.llm;
       return undefined;
     },
     effect(fn) {
@@ -51,8 +63,9 @@ test("apply registers all memory tools and the prompt section", () => {
     apply(ctx, { root, webApi: false });
     const names = ctx.defs.map((d) => d.name).sort();
     assert.deepEqual(names, [
-      "memory_delete", "memory_export", "memory_get", "memory_import",
-      "memory_list", "memory_prune", "memory_save", "memory_search", "memory_stats",
+      "context_archive", "context_status", "memory_delete", "memory_export",
+      "memory_get", "memory_import", "memory_list", "memory_prune",
+      "memory_save", "memory_search", "memory_stats",
     ]);
     assert.ok(ctx.sections.some((s) => s.name === "memory:control"));
     assert.ok(ctx.sections[0].text.includes("memory_save"));

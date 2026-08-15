@@ -10,6 +10,19 @@ step: install from git or a local folder with one `dsh plugin add`.
 - **Saves context** — the agent stores full details out-of-band with
   `memory_save` and keeps only compact summaries in the conversation;
   `memory_search` returns small hits, full text is fetched on demand.
+- **Manages long conversations (v0.2)** — the context engine keeps long
+  multi-turn sessions lean automatically:
+  - **Turn-level extraction** — durable knowledge from finished turns is
+    distilled into memory (throttled, one small LLM call);
+  - **Compaction-aware archiving** — when the harness compacts an old range,
+    the full original text is archived verbatim into a searchable memory entry
+    and distilled, so nothing is lost (the lossy summary is no longer the only
+    trace);
+  - **Bounded auto-recall** — at session start (fresh or resumed) the most
+    relevant entries for the workspace are injected as a compact
+    `<memory-recall>` block;
+  - **Explicit controls** — `context_archive` snapshots the conversation now,
+    `context_status` reports conversation size / compaction count / telemetry.
 - **Structured search** — a database-like query language
   (`kind:decision tag:auth importance:>3 since:7d "exact phrase" -excluded`)
   plus faceted filters, paging, ordering, and fuzzy typo recovery.
@@ -28,15 +41,17 @@ step: install from git or a local folder with one `dsh plugin add`.
 
 ## How it compares to existing DSH memory plugins
 
-| Plugin | External dependency | Structured search | Web UI |
-| --- | --- | --- | --- |
-| [dsh-mnemon](https://github.com/omdsh-dev/dsh-mnemon) | `mnemon` CLI | partial (spaces/entities) | sidebar workbench |
-| [dsh-memoryhub](https://github.com/solknight48/dsh-memoryhub) | `mh` CLI (Python, git) | via mh | Memory tab (iframe of mh ui) |
-| [dsh-plugin-meta-memory](https://github.com/YYTbit/dsh-plugin-meta-memory) | none | keyword only | none |
-| **memorycontrol** | **none** | **query DSL + facets + fuzzy + optional semantic** | **Memory tab (native)** |
+| Plugin | External dependency | Structured search | Web UI | Context management |
+| --- | --- | --- | --- | --- |
+| [dsh-mnemon](https://github.com/omdsh-dev/dsh-mnemon) | `mnemon` CLI | partial (spaces/entities) | sidebar workbench | partial (runtime tier) |
+| [dsh-memoryhub](https://github.com/solknight48/dsh-memoryhub) | `mh` CLI (Python, git) | via mh | Memory tab (iframe of mh ui) | partial (checkpoints) |
+| [dsh-plugin-meta-memory](https://github.com/YYTbit/dsh-plugin-meta-memory) | none | keyword only | none | brief auto-injection |
+| **memorycontrol** | **none** | **query DSL + facets + fuzzy + optional semantic** | **Memory tab (native)** | **extract + archive + auto-recall + tools** |
 
 memorycontrol is the only one that needs no external binary or service, ships
-a real query language for structured recall, and stays fully local.
+a real query language for structured recall, and adds an active context engine
+on top of the harness's own compaction — so long conversations stay lean and
+nothing is lost.
 
 ## Install
 
@@ -83,6 +98,24 @@ profile's `cordis.patch.yml`:
           baseUrl: https://api.deepseek.com
           model: deepseek-embedding
           apiKeyEnv: DEEPSEEK_API_KEY
+        context:                     # context-management engine (v0.2)
+          enabled: true
+          extract:                   # turn-level knowledge extraction
+            enabled: true
+            minNewChars: 2000        # extract only when >= this much new text
+            maxInputChars: 30000     # input cap per extraction call
+            minIntervalMs: 60000     # cooldown between extraction calls
+            maxTokens: 2048
+            provider: ''             # '' = reuse the latest routed request target
+            model: ''
+          archive:                   # compaction-aware full-fidelity archiving
+            enabled: true
+            maxChars: 60000          # verbatim text cap per archived range
+          recall:                    # bounded auto-recall at session start
+            enabled: true
+            onSessionStart: true
+            budgetChars: 6000        # recall block size cap (≈1500 tokens)
+            maxEntries: 8
 ```
 
 ## Tools
@@ -97,6 +130,8 @@ profile's `cordis.patch.yml`:
 | `memory_stats` | Totals by kind/scope, top tags, expiry, semantic status. |
 | `memory_prune` | Remove expired entries (`dry_run` to preview). |
 | `memory_export` / `memory_import` | Backup and restore/merge JSON files. |
+| `context_status` | Conversation size (chars/tokens), compaction count, module telemetry. |
+| `context_archive` | Snapshot the whole conversation into a searchable archive now (optionally summarized) + extract durable knowledge. |
 
 ### Search query language
 
@@ -172,11 +207,38 @@ lib/store.js      MemoryStore: durable JSON store + CRUD + index maintenance
 lib/search.js     tokenizer (Latin + CJK bigrams), inverted index, ranking, fuzzy
 lib/query.js      structured query DSL parser
 lib/semantic.js   optional OpenAI-compatible embeddings client
-lib/tools.js      the nine memory_* tool definitions
+lib/context.js    ContextManager: turn extraction, compaction archiving, auto-recall
+lib/tools.js      the eleven memory_* / context_* tool definitions
 lib/web.js        browser UI JSON API route (web profiles only)
 lib/client.js     browser half: Memory tab (web module-loader bundle)
-lib/prompt.js     memory guidance system-prompt section
+lib/prompt.js     memory + context guidance system-prompt section
 ```
+
+## Design & related work
+
+The context engine builds on established ideas:
+
+- **MemGPT / OS virtual context** ([arXiv:2310.08560](https://arxiv.org/abs/2310.08560)) —
+  main context + external memory with paging: we page compacted ranges out to a
+  searchable store (full fidelity) and page relevant memory back in at session start.
+- **Cognitive architectures (CoALA)** ([arXiv:2309.02427](https://arxiv.org/abs/2309.02427)) —
+  working / episodic / semantic memory split: the live surface is working memory,
+  archives are episodic, memory entries are semantic.
+- **Generative Agents** ([arXiv:2304.03442](https://arxiv.org/abs/2304.03442)) —
+  memory stream + recency/importance/relevance retrieval: our auto-recall ranks by
+  importance and workspace relevance.
+- **MemoryBank** ([arXiv:2305.10250](https://arxiv.org/abs/2305.10250)) and
+  **Mem0** ([arXiv:2504.19413](https://arxiv.org/abs/2504.19413)) —
+  long-term memory with continuous extraction: our turn-level extraction distills
+  durable knowledge before it can be lost to summarization.
+- **LLMLingua-style prompt compression** ([arXiv:2310.05736](https://arxiv.org/abs/2310.05736))
+  is the direction we deliberately leave to the harness (tool-result pruning,
+  `compaction-basic`) and complement instead of reimplement.
+
+Instead of replacing DSH's own compaction, memorycontrol observes its durable
+`compaction/start|summary|end` session events and adds the two things compaction
+cannot do alone: **lossless retention** (the raw shadowed text stays searchable)
+and **durable distillation** (knowledge survives the lossy summary).
 
 ## License
 
