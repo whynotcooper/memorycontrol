@@ -1,15 +1,16 @@
-# memorycontrol bundle patch: applied when a profile lists this bundle in its
-# dsh.profile.bundles (which `dsh plugin add memorycontrol` does automatically).
+# self-memorycontrol bundle patch: applied when a profile lists this bundle in
+# its dsh.profile.bundles (which `dsh plugin add self-memorycontrol` does
+# automatically, or `dsh plugin add github:whynotcooper/memorycontrol`).
 #
 # A patch replaces a row's whole `config`, so overrides from a profile's own
 # cordis.patch.yml must restate every key the row needs, e.g.:
 #
 #   - insert:
-#       - id: memorycontrol
-#         name: memorycontrol
+#       - id: self-memorycontrol
+#         name: self-memorycontrol
 #         config:
 #           root: ''                  # storage root; '' => $DSH_HOME/memory
-#           registerTools: true       # register the memory_* model tools
+#           registerTools: true       # register the memory_* model tools (skipped when the harness already provides them)
 #           prompt: true              # add the memory guidance prompt section
 #           webApi: true              # serve the browser UI JSON API (web only)
 #           defaultLimit: 10          # default result limit for search/list
@@ -20,7 +21,25 @@
 #             baseUrl: https://api.deepseek.com
 #             model: deepseek-embedding
 #             apiKeyEnv: DEEPSEEK_API_KEY
+#           context:                  # context-management engine (v0.2)
+#             enabled: true
+#             extract:
+#               enabled: true
+#               minNewChars: 2000
+#               maxInputChars: 30000
+#               minIntervalMs: 60000
+#               maxTokens: 2048
+#               provider: ''
+#               model: ''
+#             archive:
+#               enabled: true
+#               maxChars: 60000
+#             recall:
+#               enabled: true
+#               onSessionStart: true
+#               budgetChars: 6000
+#               maxEntries: 8
 
 - insert:
-    - id: memorycontrol
-      name: memorycontrol
+    - id: self-memorycontrol
+      name: self-memorycontrol
